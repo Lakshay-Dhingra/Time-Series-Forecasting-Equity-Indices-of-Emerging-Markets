@@ -1,0 +1,580 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+## **1. Installing Packages**
+
+```{r}
+# Disabling Warnings
+options(warn = -1)
+
+# Required Packages
+packages = c('tseries','TSstudio','fBasics','rcompanion', 'forecast', 'lmtest', 'forecast', 'tsDyn', 'vars', 'readxl', 'PerformanceAnalytics', 'vrtest','pracma', 'rmgarch', 'urca', 'FinTS', 'zoo', 'rugarch', 'e1071', 'fGarch')
+
+# Install all Packages with Dependencies
+# install.packages(packages, dependencies = TRUE) 
+
+# Load all Packages
+lapply(packages, require, character.only = TRUE)
+```
+
+## **2. Loading and Preprocessing the Data**
+
+```{r}
+equity <- read.csv("./Dataset/Equity_Combined.csv")
+```
+
+Data already combined, cleaned, and pre-processed using Excel.
+
+## **3. Data at Glance**
+
+These are the closing prices of benchmark indices of the largest equity exchange of 5 countries:\
+\
+**1. Brazil -** **Ibovespa**: The Ibovespa is the benchmark index of the B3 (Brasil Bolsa Balcão), which is the main stock exchange in Brazil, consisting of the most traded stocks in the Brazilian market.
+
+**2. China - Shanghai Composite Index**: The Shanghai Composite tracks all stocks (A-shares and B-shares) listed on the Shanghai Stock Exchange. It is the most commonly used benchmark for the Chinese stock market.
+
+**3. Indonesia - Jakarta Composite Index (JCI)**: The JCI is the main stock market index of the Indonesia Stock Exchange (IDX), tracking the performance of all listed companies.
+
+**4. India - NIFTY 50:** It is the main index of India's National Stock Exchange (NSE) which features majority of listed companies in India.
+
+**5. Mexico - BMV IPC**: This index is the benchmark for the Mexican stock market, consisting of a selection of the most liquid stocks listed on the Bolsa Mexicana de Valores (BMV).
+
+```{r}
+head(equity)
+```
+
+## 4. Calculating Log Returns of Each Market
+
+```{r}
+# Changing the Date Format to 'yyyy-mm-dd'
+equity$Common.Date <- as.Date(equity$Common.Date, format = "%d-%m-%Y")
+
+head(equity)
+```
+
+```{r}
+# Calculate Log Return for entire file
+LR_Equity = CalculateReturns(equity, method="log")[-1,]
+head(LR_Equity)
+```
+
+## **5. Testing Stationarity: ADF Test**
+
+**Null Hypothesis (H0):** The data has a unit root, which means it is non-stationary.
+
+**Alternative Hypothesis (H1):** The data does not have a unit root, which means it is stationary
+
+```{r}
+adf.test(LR_Equity$Brazil, alternative = "stationary")
+```
+
+Null Hypothesis is Rejected, Log Return Series for Brazil is Stationary.
+
+```{r}
+adf.test(LR_Equity$Indonesia, alternative = "stationary")
+```
+
+Null Hypothesis is Rejected, Log Return Series for Indonesia is Stationary.
+
+```{r}
+adf.test(LR_Equity$India, alternative = "stationary")
+```
+
+Null Hypothesis is Rejected, Log Return Series for India is Stationary.
+
+```{r}
+adf.test(LR_Equity$China, alternative = "stationary")
+```
+
+Null Hypothesis is Rejected, Log Return Series for China is Stationary.
+
+```{r}
+adf.test(LR_Equity$Mexico, alternative = "stationary")
+```
+
+Null Hypothesis is Rejected, Log Return Series for Mexico is Stationary.
+
+**Conclusion: All Log Returns are Stationary.**
+
+## **6. Visualizing Log Returns**
+
+```{r}
+ts_plot(data.frame(LR_Equity$Mexico, equity$Common.Date[-1]))
+```
+
+```{r}
+ts_plot(data.frame(LR_Equity$India, equity$Common.Date[-1]))
+```
+
+```{r}
+ts_plot(data.frame(LR_Equity$Brazil, equity$Common.Date[-1]))
+```
+
+```{r}
+ts_plot(data.frame(LR_Equity$China, equity$Common.Date[-1]))
+```
+
+```{r}
+ts_plot(data.frame(LR_Equity$Indonesia, equity$Common.Date[-1]))
+```
+
+**Conclusion: The data seems to have Volatility Clustering, i.e. large changes in return are followed by large changes of either sign, but we need to test further.**
+
+## 7. Testing Autocorrelation: Ljung-Box Test
+
+-   **Null Hypothesis (H0):** The time series data does not exhibit significant autocorrelation up to lag k.
+
+-   **Alternative Hypothesis (H1):** The time series data exhibits significant autocorrelation up to lag k.
+
+### 7.1. Brazil
+
+```{r}
+# Finding optimal lag
+VARselect(LR_Equity$Brazil, lag.max = 15, type = "const")
+```
+
+Optimal Lag = 2
+
+```{r}
+Box.test(LR_Equity$Brazil, lag = 2)
+```
+
+Null Hypothesis can't be rejected, there can be no significant autocorrelation at lag = 2.
+
+### 7.2. Indonesia
+
+```{r}
+# Finding optimal lag
+VARselect(LR_Equity$Indonesia, lag.max = 15, type = "const")
+```
+
+Optimal Lag = 4
+
+```{r}
+Box.test(LR_Equity$Indonesia, lag = 4)
+```
+
+Null Hypothesis can't be rejected, there can be no significant autocorrelation at lag = 4.
+
+### 7.3. India
+
+```{r}
+# Finding optimal lag
+VARselect(LR_Equity$India, lag.max = 15, type = "const")
+```
+
+Optimal Lag = 1
+
+```{r}
+Box.test(LR_Equity$India, lag = 1)
+```
+
+Null Hypothesis can't be rejected, there can be no significant autocorrelation at lag = 1.
+
+### 7.4. China
+
+```{r}
+# Finding optimal lag
+VARselect(LR_Equity$China, lag.max = 15, type = "const")
+```
+
+Optimal Lag = 3
+
+```{r}
+Box.test(LR_Equity$China, lag = 3)
+```
+
+Null Hypothesis can't be rejected, there can be no significant autocorrelation at lag = 3.
+
+### 7.5. Mexico
+
+```{r}
+# Finding optimal lag 
+VARselect(LR_Equity$Mexico, lag.max = 15, type = "const")
+```
+
+Optimal Lag = 1
+
+```{r}
+Box.test(LR_Equity$Mexico, lag = 1)
+```
+
+Null Hypothesis can't be rejected, there can be no significant autocorrelation at lag = 1.
+
+**Conclusion: All 5 series are likely to have no significant serial autocorrelation.**
+
+## 8. Finding the ARMA Order
+
+```{r}
+auto.arima(LR_Equity$Brazil)
+```
+
+```{r}
+auto.arima(LR_Equity$India)
+```
+
+```{r}
+auto.arima(LR_Equity$Indonesia)
+```
+
+```{r}
+auto.arima(LR_Equity$China)
+```
+
+```{r}
+auto.arima(LR_Equity$Mexico)
+```
+
+All series, except India have AR Order = 0. -\> There can be Autocorrelation in Indian Stocks.\
+All series have MA order Order = 0. -\> No Autocorrelation in error/residual terms.
+
+**Conclusion: This confirms there is no autocorrelation in the error terms of all of the log return series, (bcz MA Order = 0), it may be suitable to apply ARCH/GARCH, if volatility clustering is confirmed.**
+
+## 9. ARIMA Modelling for Indian Stocks
+
+```{r}
+ARIMA_India = arima(LR_Equity$India,order = c(1,0,0))
+ARIMA_India
+```
+
+```{r}
+# Significance of AR and MA
+coeftest(ARIMA_India)
+```
+
+**Null Hypothesis (H0):** The coefficient of the AR(1) term is zero, meaning the AR(1) term is not significant.
+
+**Alternative Hypothesis (H1):** The coefficient of the AR(1) term is non-zero, meaning the AR(1) term is significant.
+
+P \> 0.05: Null Hypothesis can't be rejected, this means AR Order of 1 might be non-significant for Indian Stocks.
+
+**Conclusion: AR(1) for Indian Stocks not significant, i.e. there is no autocorrelation.**
+
+## 10. Testing Heteroscedasticity: ARCH Test
+
+**Null Hypothesis (H0):** There is no ARCH effect in the time series data. In other words, the variance of the residuals is constant over time (homoscedasticity).
+
+**Alternative Hypothesis (H1):** There is an ARCH effect in the time series data. In other words, the variance of the residuals changes over time (heteroscedasticity)
+
+```{r}
+ArchTest(LR_Equity$Brazil)
+```
+
+Null Hypothesis Rejected; there is conditional heteroscedasticity.
+
+```{r}
+ArchTest(LR_Equity$China)
+```
+
+Null Hypothesis Rejected; there is conditional heteroscedasticity.
+
+```{r}
+ArchTest(LR_Equity$India)
+```
+
+Null Hypothesis Rejected; there is conditional heteroscedasticity.
+
+```{r}
+ArchTest(LR_Equity$Indonesia)
+```
+
+Null Hypothesis Rejected; there is conditional heteroscedasticity.
+
+```{r}
+ArchTest(LR_Equity$Mexico)
+```
+
+Null Hypothesis can't be rejected; Mexico's returns might not have any conditional heteroscedasticity.
+
+**Conclusion: Log returns of all 4, except Mexico has Heteroscedasticity, i.e. error terms doesn't follow i.i.nd.**
+
+## 11. Checking Autocorrelation in square of residuals
+
+-   **Null Hypothesis (H0):** The time series data does not exhibit significant autocorrelation up to lag k.
+
+-   **Alternative Hypothesis (H1):** The time series data exhibits significant autocorrelation up to lag k.
+
+### 11.1. Brazil
+
+```{r}
+# Finding optimal lag 
+VARselect(LR_Equity$Brazil^2, lag.max = 15, type = "const")
+```
+
+Optimal Lag = 9
+
+```{r}
+Box.test(LR_Equity$Brazil^2, lag = 9)
+```
+
+Null Hypothesis can be rejected, there is significant autocorrelation at lag = 9.
+
+### 11.2. Indonesia
+
+```{r}
+# Finding optimal lag 
+VARselect(LR_Equity$Indonesia^2, lag.max = 15, type = "const")
+```
+
+Optimal Lag = 3
+
+```{r}
+Box.test(LR_Equity$Indonesia^2, lag = 3)
+```
+
+Null Hypothesis can be rejected, there is significant autocorrelation at lag = 3.
+
+### 11.3. India
+
+```{r}
+# Finding optimal lag 
+VARselect(LR_Equity$India^2, lag.max = 15, type = "const")
+```
+
+Optimal Lag = 8
+
+```{r}
+Box.test(LR_Equity$India^2, lag = 8)
+```
+
+Null Hypothesis can be rejected, there is significant autocorrelation at lag = 8.
+
+### 11.4. China
+
+```{r}
+# Finding optimal lag
+VARselect(LR_Equity$China^2, lag.max = 15, type = "const")
+```
+
+Optimal Lag = 2
+
+```{r}
+Box.test(LR_Equity$China^2, lag = 2)
+```
+
+Null Hypothesis can be rejected, there is significant autocorrelation at lag = 3.
+
+### 11.5. Mexico
+
+```{r}
+VARselect(LR_Equity$Mexico^2, lag.max = 15, type = "const")
+```
+
+Optimal Lag = 1
+
+```{r}
+Box.test(LR_Equity$Mexico^2, lag = 1)
+```
+
+Null Hypothesis can't be rejected, there is no significant autocorrelation at lag = 1.
+
+**Conclusion: It confirms again that except Mexican market all other markets exhibit ARCH effects or Volatility Clustering.**
+
+## **12. Volatility Persistence**
+
+**Alpha (α)**: This coefficient captures the **short-term persistence of volatility**. It reflects the impact of recent shocks on current volatility. A high alpha indicates that recent news has a strong influence on volatility.
+
+**Beta (β)**: This coefficient measures the **long-term persistence of volatility**. It represents the effect of past conditional variances on current variance. A high beta suggests that volatility is highly persistent over time.
+
+**Volatility Persistence (α+β)**: If this sum is close to 1, volatility is very persistent, and the impact of shocks diminishes slowly.
+
+## 13. GARCH Modelling for Capturing Volatility Clustering and Volatility Persistence
+
+### 13.1. Brazil
+
+```{r}
+# Specify the GARCH(1,1) model
+brazil_spec <- ugarchspec(
+  variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+  mean.model = list(armaOrder = c(0, 0), include.mean = TRUE)
+)
+
+# Fit the model
+brazil_garch_fit <- ugarchfit(spec = brazil_spec, data = LR_Equity$Brazil)
+
+brazil_garch_fit
+```
+
+-   **alpha1 (ARCH term)**: The estimate is 0.019367 with a p-value of 0.00000. This indicates that the ARCH effect is highly significant (p-value \< 0.05).
+
+-   **beta1 (GARCH term)**: The estimate is 0.979111 with a p-value of 0.00000. This suggests that the GARCH effect is also highly significant.
+
+-   **Weighted Ljung-Box Test on Standardized Residuals**: The p-values for lags 1, 2, and 4 are all greater than 0.05 (0.7444, 0.3281, 0.2384), indicating no significant serial autocorrelation in the standardized residuals.
+
+-   **Weighted Ljung-Box Test on Standardized Squared Residuals**: The p-value for lag 4 is 0.04782, which is slightly below 0.05, indicating GARCH might not have captured volatility clustering completely.
+
+-   **ARCH LM Tests**: Lag 5 and Lag 7 show p-values below 0.05, indicating that there is evidence of ARCH effects remaining at these lags.
+
+-   **Sign Bias Test:** Since all the p-values are above 0.05, this indicates that **there are no asymmetries** in how positive and negative shocks impact the volatility.
+
+Overall, the model is a good fit, but we can possibly explore other symmetrical models for a better fit.
+
+```{r}
+brazil_forecast = ugarchforecast(brazil_garch_fit, n.ahead = 10)
+brazil_forecast
+```
+
+```{r}
+plot(brazil_forecast, which=1)
+```
+
+```{r}
+plot(brazil_forecast, which=3)
+```
+
+### 13.2. Indonesia
+
+```{r}
+# Specify the GARCH(1,1) model
+indonesia_spec <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),   mean.model = list(armaOrder = c(0, 0), include.mean = TRUE))
+# Fit the model
+indonesia_garch_fit <- ugarchfit(spec = indonesia_spec, data = LR_Equity$Indonesia)
+indonesia_garch_fit
+```
+
+-   **alpha1 (ARCH term)**: The ARCH effect is highly significant (p-value \< 0.05).
+
+-   **beta1 (GARCH term)**: The GARCH effect is also highly significant (p-value \< 0.05).
+
+-   **Weighted Ljung-Box Test on Standardized Residuals**: The p-values for lags 1, 2, and 4 are all greater than 0.05, indicating no significant serial autocorrelation in the standardized residuals.
+
+-   **Weighted Ljung-Box Test on Standardized Squared Residuals**: TThe p-values for lags 1, 2, and 4 are all greater than 0.05, indicating that model have captured volatility clustering.
+
+-   **ARCH LM Tests**: All p-values above 0.05, indicating that there are no ARCH effects remaining.
+
+-   **Sign Bias Test:** Since all the p-values are above 0.05, this indicates that there are no asymmetries in how positive and negative shocks impact the volatility.
+
+Overall the model is a good fit.
+
+```{r}
+indonesia_forecast = ugarchforecast(indonesia_garch_fit, n.ahead = 10)
+indonesia_forecast
+```
+
+```{r}
+plot(indonesia_forecast, which=1)
+```
+
+```{r}
+plot(indonesia_forecast, which=3)
+```
+
+### 13.3. India
+
+```{r}
+# Specify the GARCH(1,1) model 
+india_spec <- ugarchspec(
+  variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+  mean.model = list(armaOrder = c(0, 0), include.mean = TRUE)) 
+# Fit the model 
+india_garch_fit <- ugarchfit(spec = india_spec, data = LR_Equity$India)
+india_garch_fit
+```
+
+-   **alpha1 (ARCH term)**: The ARCH effect is highly significant (p-value \< 0.05).
+
+-   **beta1 (GARCH term)**: The GARCH effect is also highly significant (p-value \< 0.05).
+
+-   **Weighted Ljung-Box Test on Standardized Residuals**: The p-values for lags 1, 2, and 4 are all greater than 0.05, indicating no significant serial autocorrelation in the standardized residuals.
+
+-   **Weighted Ljung-Box Test on Standardized Squared Residuals**: The p-values for lags 1, 2, and 4 are all greater than 0.05, indicating that model have captured volatility clustering.
+
+-   **ARCH LM Tests**: All p-values above 0.05, indicating that there are no ARCH effects remaining.
+
+-   **Sign Bias Test:** Since all the p-values are above 0.05, this indicates that there are no asymmetries in how positive and negative shocks impact the volatility.
+
+Overall the model is a good fit.
+
+```{r}
+india_forecast = ugarchforecast(india_garch_fit, n.ahead = 10) 
+india_forecast
+```
+
+```{r}
+plot(india_forecast, which=1)
+```
+
+```{r}
+plot(india_forecast, which=3)
+```
+
+### 13.4. China
+
+```{r}
+# Specify the GARCH(1,1) model  
+china_spec <- ugarchspec(   
+  variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),   
+  mean.model = list(armaOrder = c(0, 0), include.mean = TRUE))  
+# Fit the model  
+china_garch_fit <- ugarchfit(spec = china_spec, data = LR_Equity$China)
+china_garch_fit
+```
+
+-   **alpha1 (ARCH term)**: The ARCH effect is highly significant (p-value \< 0.05).
+
+-   **beta1 (GARCH term)**: The GARCH effect is also highly significant (p-value \< 0.05).
+
+-   **Weighted Ljung-Box Test on Standardized Residuals**: The p-values for lags 1, 2, and 4 are all greater than 0.05, indicating no significant serial autocorrelation in the standardized residuals.
+
+-   **Weighted Ljung-Box Test on Standardized Squared Residuals**: The p-values for lags 1, 2, and 4 are all greater than 0.05, indicating that model have captured volatility clustering.
+
+-   **ARCH LM Tests**: All p-values above 0.05, indicating that there are no ARCH effects remaining.
+
+-   **Sign Bias Test:** Since all the p-values are above 0.05, this indicates that there are no asymmetries in how positive and negative shocks impact the volatility.
+
+Overall the model is a good fit.
+
+```{r}
+china_forecast = ugarchforecast(china_garch_fit, n.ahead = 10)  
+china_forecast
+```
+
+```{r}
+plot(china_forecast, which = 1)
+```
+
+```{r}
+plot(china_forecast, which = 3)
+```
+
+### 13.5. Mexico
+
+```{r}
+# Specify the GARCH(0,1) model
+mexico_spec <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(0, 1)),   mean.model = list(armaOrder = c(0, 0), include.mean = TRUE))
+# Fit the model
+mexico_garch_fit <- ugarchfit(spec = mexico_spec, data = LR_Equity$Indonesia)
+mexico_garch_fit
+```
+
+-   Kept ARCH Order = 0, because there were no ARCH effects in Mexican Stocks.
+
+-   **beta1 (GARCH term)**: The GARCH effect is also highly significant (p-value \< 0.05).
+
+-   **Weighted Ljung-Box Test on Standardized Residuals**: The p-values for lags 1, 2, and 4 are all greater than 0.05, indicating no significant serial autocorrelation in the standardized residuals.
+
+-   **Sign Bias Test:** Since all the p-values are above 0.05, this indicates that there are no asymmetries in how positive and negative shocks impact the volatility.
+
+Overall the model is a good fit.
+
+```{r}
+mexico_forecast = ugarchforecast(mexico_garch_fit, n.ahead = 10)
+mexico_forecast
+```
+
+```{r}
+plot(mexico_forecast, which=1)
+```
+
+```{r}
+plot(mexico_forecast, which=3)
+```
+
+## 14. Conclusion
+
+**We've forecasted the log returns of all the series using GARCH Models. Stock markets of all other countries exhibited volatility clustering, except the Mexican markets.**
